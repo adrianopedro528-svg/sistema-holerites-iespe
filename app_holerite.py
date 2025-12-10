@@ -9,6 +9,7 @@ st.set_page_config(page_title="Envio de Holerites", page_icon="📧")
 
 # --- CARREGAR CONFIGURAÇÕES DO COFRE (SECRETS) ---
 try:
+    # Tenta converter os segredos em dicionário para evitar erro de .copy()
     DB_FUNCIONARIOS = dict(st.secrets["funcionarios"])
     
     # Carrega dados do email fixo
@@ -17,9 +18,15 @@ try:
     EMAIL_BCC = st.secrets["config_email"]["email_copia"]
     
 except Exception as e:
-    st.error(f"Erro ao carregar segredos: {e}")
-    st.stop() # Para o app se não tiver senha configurada
+    # Se der erro nos segredos, mostra aviso mas não trava totalmente (carrega dummy)
+    st.error(f"Erro ao carregar segredos (Secrets): {e}")
+    DB_FUNCIONARIOS = {} 
+    # Define valores vazios para não quebrar o resto do código
+    EMAIL_REMETENTE = ""
+    SENHA_REMETENTE = ""
+    EMAIL_BCC = ""
 
+# --- INICIALIZA SESSÃO ---
 if 'banco_dados' not in st.session_state:
     st.session_state['banco_dados'] = DB_FUNCIONARIOS.copy()
 
@@ -29,31 +36,33 @@ def enviar_email_fixo(destinatario, assunto, corpo, anexo_bytes, nome_arquivo):
     msg['Subject'] = assunto
     msg['From'] = EMAIL_REMETENTE
     msg['To'] = destinatario
-    
-    # --- AQUI ESTÁ A MÁGICA DA CÓPIA OCULTA ---
-    # O funcionário não vê, mas o financeiro recebe
-    msg['Bcc'] = EMAIL_BCC 
-    
+    msg['Bcc'] = EMAIL_BCC # Cópia oculta para o Financeiro
     msg.set_content(corpo)
 
-    # Anexa o PDF
     msg.add_attachment(anexo_bytes, maintype='application', subtype='pdf', filename=nome_arquivo)
 
-    # Configuração GMAIL (Já que o fixo será Gmail)
+    # Configuração GMAIL (Para o e-mail remetente fixo)
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(EMAIL_REMETENTE, SENHA_REMETENTE)
         smtp.send_message(msg)
 
 # --- INTERFACE VISUAL ---
 st.title("📧 Sistema de Envio de Holerites")
-st.caption(f"Enviando através de: {EMAIL_REMETENTE}") # Mostra quem está enviando
+if EMAIL_REMETENTE:
+    st.caption(f"Enviando através de: {EMAIL_REMETENTE}")
+else:
+    st.error("⚠️ Email remetente não configurado nos Secrets!")
+
 st.markdown("---")
 
-# Barra Lateral (Agora só informativa, sem login)
+# Barra Lateral
 with st.sidebar:
     st.header("ℹ️ Status do Sistema")
-    st.success("Login Automático Ativo")
-    st.info(f"Cópia oculta configurada para:\n{EMAIL_BCC}")
+    if EMAIL_REMETENTE:
+        st.success("✅ Login Automático Ativo")
+        st.info(f"Cópia oculta configurada para:\n{EMAIL_BCC}")
+    else:
+        st.error("❌ Falta configurar Secrets")
 
 col1, col2 = st.columns(2)
 
@@ -95,18 +104,22 @@ nomes_selecionados = st.multiselect(
 
 st.write(f"Emails serão enviados para **{len(nomes_selecionados)}** pessoas.")
 
-# --- BOTÃO DE AÇÃO ---
+# --- LÓGICA DO BOTÃO DE DISPARO ---
 if st.button("🚀 Disparar Holerites", type="primary"):
     if not arquivo_pdf:
         st.error("Falta o arquivo PDF!")
     elif len(nomes_selecionados) == 0:
         st.warning("Selecione alguém.")
+    elif not EMAIL_REMETENTE:
+        st.error("Configuração de email inválida. Verifique os Secrets.")
     else:
         barra = st.progress(0)
         status = st.empty()
         cont = 0
         
         try:
+            # Reseta o ponteiro do arquivo para garantir leitura do início
+            arquivo_pdf.seek(0)
             leitor = PdfReader(arquivo_pdf)
             total = len(leitor.pages)
             
@@ -114,6 +127,7 @@ if st.button("🚀 Disparar Holerites", type="primary"):
                 texto = pagina.extract_text()
                 
                 for nome in nomes_selecionados:
+                    # Verifica se o nome está no texto (caixa alta para garantir)
                     if nome.upper() in texto.upper():
                         email_dest = st.session_state['banco_dados'][nome]
                         status.text(f"Enviando para: {nome}...")
@@ -126,7 +140,6 @@ if st.button("🚀 Disparar Holerites", type="primary"):
                         escritor.write(pdf_bytes)
                         
                         try:
-                            # Chama a nova função sem pedir senha
                             enviar_email_fixo(
                                 email_dest, 
                                 assunto_email, 
@@ -137,18 +150,7 @@ if st.button("🚀 Disparar Holerites", type="primary"):
                             st.toast(f"✅ Enviado: {nome}")
                             cont += 1
                         except Exception as e:
-                            st.error(f"Erro {nome}: {e}")
-# .Espião
-st.markdown("---")
-with st.expander("🔍 Modo Espião (Veja como o robô lê o PDF)"):
-    if arquivo_pdf:
-        leitor_debug = PdfReader(arquivo_pdf)
-        for i, pagina in enumerate(leitor_debug.pages):
-            st.write(f"--- Página {i+1} ---")
-            st.text(pagina.extract_text()) # Mostra o texto cru
-    else:
-        st.warning("Faça o upload do PDF primeiro.")
-
+                            st.error(f"Erro ao enviar para {nome}: {e}")
                 
                 barra.progress((i + 1) / total)
             
@@ -156,5 +158,18 @@ with st.expander("🔍 Modo Espião (Veja como o robô lê o PDF)"):
             status.empty()
             
         except Exception as e:
-            st.error(f"Erro crítico: {e}")
+            st.error(f"Erro crítico no processamento: {e}")
 
+# --- MODO ESPIÃO (FORA DO BOTÃO DE ENVIO) ---
+st.markdown("---")
+with st.expander("🔍 Modo Espião (Veja como o robô lê o PDF)"):
+    if arquivo_pdf:
+        st.info("Abaixo está o texto exato que o robô conseguiu ler de cada página.")
+        st.info("DICA: Copie apenas a parte do nome que aparece 'limpa' para cadastrar.")
+        
+        # Reseta o arquivo novamente para ler do zero
+        arquivo_pdf.seek(0)
+        leitor_debug = PdfReader(arquivo_pdf)
+        
+        for i, pagina in enumerate(leitor_debug.pages):
+            texto_cru = pagina.extract_text()
