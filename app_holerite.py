@@ -9,13 +9,14 @@ st.set_page_config(page_title="Envio Fácil", page_icon="📧")
 
 # --- LISTA PADRÃO DE FUNCIONÁRIOS (Seu banco de dados fixo) ---
 # O sistema sempre vai reiniciar com essa lista completa.
-DB_FUNCIONARIOS = {
-    "Aguinaldo Lourenco": "aguinaldo.lourenco@iespe.com.br",
-    "Amanda da Costa Pugliese": "amandapugliese840@gmail.com",
-    "Jonathan Martin Pacheco": "jonathanjm.diseno@gmail.com",
-    "Pablo Silva Correa": "pablo.correa@iespe.com.br",
-    "Pedro Adriano Oliveira": "pedroodaquino@gmail.com"
-}
+# Em vez de escrever a lista aqui, pegamos dos segredos do Streamlit
+# Se estiver rodando local no seu PC, ele vai dar erro se não tiver o arquivo .streamlit/secrets.toml
+# Mas na nuvem funciona direto.
+if "funcionarios" in st.secrets:
+    DB_FUNCIONARIOS = st.secrets["funcionarios"]
+else:
+    # Fallback apenas para teste local seguro, ou deixe vazio
+    DB_FUNCIONARIOS = {}
 
 # --- FUNÇÃO DE ENVIO DE EMAIL ---
 def enviar_email(remetente, senha, destinatario, assunto, corpo, anexo_bytes, nome_arquivo):
@@ -175,4 +176,5 @@ if st.button("🚀 Iniciar Disparo", type="primary"):
             barra_progresso.empty()
             
         except Exception as e:
+
             st.error(f"Erro crítico no processamento: {e}")
