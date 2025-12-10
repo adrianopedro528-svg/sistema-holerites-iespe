@@ -8,15 +8,13 @@ import os
 st.set_page_config(page_title="Envio Fácil", page_icon="📧")
 
 # --- LISTA DE FUNCIONÁRIOS (BUSCANDO DO COFRE) ---
+# --- LISTA DE FUNCIONÁRIOS ---
 try:
-    # Tenta pegar a lista que está nos Secrets do Streamlit
-    DB_FUNCIONARIOS = st.secrets["funcionarios"]
+    # O segredo é adicionar 'dict()' para converter em um dicionário Python normal
+    DB_FUNCIONARIOS = dict(st.secrets["funcionarios"])
 except:
-    # Se der erro (ou se você estiver testando no seu PC sem configurar secrets)
-    # Cria uma lista vazia ou de teste para o site não cair
-    DB_FUNCIONARIOS = {"Teste Sistema": "email@teste.com"}
-    st.warning("⚠️ Atenção: A lista de funcionários não foi carregada dos Segredos.")
-
+    # Fallback para caso o segredo não exista ou a chave esteja errada
+    DB_FUNCIONARIOS = {"Sistema de Teste": "teste@exemplo.com"}
 # --- FUNÇÃO DE ENVIO DE EMAIL ---
 def enviar_email(remetente, senha, destinatario, assunto, corpo, anexo_bytes, nome_arquivo):
     msg = EmailMessage()
@@ -177,4 +175,5 @@ if st.button("🚀 Iniciar Disparo", type="primary"):
         except Exception as e:
 
             st.error(f"Erro crítico no processamento: {e}")
+
 
