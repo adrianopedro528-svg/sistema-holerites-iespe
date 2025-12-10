@@ -162,14 +162,31 @@ if st.button("🚀 Disparar Holerites", type="primary"):
 
 # --- MODO ESPIÃO (FORA DO BOTÃO DE ENVIO) ---
 st.markdown("---")
-with st.expander("🔍 Modo Espião (Veja como o robô lê o PDF)"):
+with st.expander("🔍 Modo Espião (Diagnóstico Completo)"):
     if arquivo_pdf:
-        st.info("Abaixo está o texto exato que o robô conseguiu ler de cada página.")
-        st.info("DICA: Copie apenas a parte do nome que aparece 'limpa' para cadastrar.")
-        
-        # Reseta o arquivo novamente para ler do zero
-        arquivo_pdf.seek(0)
-        leitor_debug = PdfReader(arquivo_pdf)
-        
-        for i, pagina in enumerate(leitor_debug.pages):
-            texto_cru = pagina.extract_text()
+        try:
+            # 1. Reseta o arquivo para o inicio
+            arquivo_pdf.seek(0)
+            leitor_debug = PdfReader(arquivo_pdf)
+            num_paginas = len(leitor_debug.pages)
+            
+            st.info(f"📊 O robô detectou **{num_paginas} páginas** neste arquivo.")
+            st.info("Abaixo mostro o que consigo ler. Se estiver vazio, o PDF pode ser uma imagem.")
+
+            for i, pagina in enumerate(leitor_debug.pages):
+                texto_cru = pagina.extract_text()
+                
+                st.markdown(f"### 📄 Página {i+1}")
+                
+                if texto_cru and len(texto_cru.strip()) > 0:
+                    # Mostra o texto dentro de uma caixa de texto para facilitar a leitura
+                    st.text_area(f"Texto encontrado na Pág {i+1}", value=texto_cru, height=200)
+                else:
+                    st.warning(f"⚠️ A página {i+1} parece vazia ou é uma imagem escaneada (sem texto selecionável).")
+                
+                st.divider()
+
+        except Exception as e:
+            st.error(f"❌ Erro ao tentar ler o PDF: {e}")
+    else:
+        st.warning("Faça o upload do PDF lá em cima primeiro.")
