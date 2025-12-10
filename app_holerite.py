@@ -15,7 +15,7 @@ try:
 except:
     # Fallback para caso o segredo não exista ou a chave esteja errada
     DB_FUNCIONARIOS = {"Sistema de Teste": "teste@exemplo.com"}
-# --- FUNÇÃO DE ENVIO DE EMAIL ---
+# --- FUNÇÃO DE ENVIO DE EMAIL (HÍBRIDA / INTELIGENTE) ---
 def enviar_email(remetente, senha, destinatario, assunto, corpo, anexo_bytes, nome_arquivo):
     msg = EmailMessage()
     msg['Subject'] = assunto
@@ -23,13 +23,26 @@ def enviar_email(remetente, senha, destinatario, assunto, corpo, anexo_bytes, no
     msg['To'] = destinatario
     msg.set_content(corpo)
 
-    # Anexa o PDF (que está na memória)
+    # Anexa o PDF
     msg.add_attachment(anexo_bytes, maintype='application', subtype='pdf', filename=nome_arquivo)
 
-    # Conexão segura
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-        smtp.login(remetente, senha)
-        smtp.send_message(msg)
+    # LÓGICA INTELIGENTE: Escolhe o servidor baseado no email do remetente
+    if "gmail.com" in remetente.lower():
+        # --- CONFIGURAÇÃO GMAIL ---
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(remetente, senha)
+            smtp.send_message(msg)
+    else:
+        # --- CONFIGURAÇÃO MICROSOFT (Outlook / Office 365 / Institucional) ---
+        try:
+            with smtplib.SMTP('smtp.office365.com', 587) as smtp:
+                smtp.ehlo()
+                smtp.starttls() 
+                smtp.ehlo()
+                smtp.login(remetente, senha)
+                smtp.send_message(msg)
+        except Exception as e:
+            raise Exception(f"Erro de conexão com Microsoft: {e}")
 
 # --- INTERFACE VISUAL (FRONT-END) ---
 # ... (Mantenha os imports e a função enviar_email iguais) ...
