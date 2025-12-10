@@ -7,16 +7,15 @@ import os
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Envio Fácil", page_icon="📧")
 
-# --- LISTA PADRÃO DE FUNCIONÁRIOS (Seu banco de dados fixo) ---
-# O sistema sempre vai reiniciar com essa lista completa.
-# Em vez de escrever a lista aqui, pegamos dos segredos do Streamlit
-# Se estiver rodando local no seu PC, ele vai dar erro se não tiver o arquivo .streamlit/secrets.toml
-# Mas na nuvem funciona direto.
-if "funcionarios" in st.secrets:
+# --- LISTA DE FUNCIONÁRIOS (BUSCANDO DO COFRE) ---
+try:
+    # Tenta pegar a lista que está nos Secrets do Streamlit
     DB_FUNCIONARIOS = st.secrets["funcionarios"]
-else:
-    # Fallback apenas para teste local seguro, ou deixe vazio
-    DB_FUNCIONARIOS = {}
+except:
+    # Se der erro (ou se você estiver testando no seu PC sem configurar secrets)
+    # Cria uma lista vazia ou de teste para o site não cair
+    DB_FUNCIONARIOS = {"Teste Sistema": "email@teste.com"}
+    st.warning("⚠️ Atenção: A lista de funcionários não foi carregada dos Segredos.")
 
 # --- FUNÇÃO DE ENVIO DE EMAIL ---
 def enviar_email(remetente, senha, destinatario, assunto, corpo, anexo_bytes, nome_arquivo):
@@ -178,3 +177,4 @@ if st.button("🚀 Iniciar Disparo", type="primary"):
         except Exception as e:
 
             st.error(f"Erro crítico no processamento: {e}")
+
