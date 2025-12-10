@@ -5,7 +5,7 @@ from pypdf import PdfReader, PdfWriter
 import os
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Envio de Holerites", page_icon="📧")
+st.set_page_config(page_title="Envio de Holerites", page_icon="ensine logo branco.png")
 
 # --- CARREGAR CONFIGURAÇÕES DO COFRE (SECRETS) ---
 try:
@@ -190,3 +190,4 @@ with st.expander("🔍 Modo Espião (Diagnóstico Completo)"):
             st.error(f"❌ Erro ao tentar ler o PDF: {e}")
     else:
         st.warning("Faça o upload do PDF lá em cima primeiro.")
+
