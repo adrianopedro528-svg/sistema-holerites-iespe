@@ -138,6 +138,17 @@ if st.button("🚀 Disparar Holerites", type="primary"):
                             cont += 1
                         except Exception as e:
                             st.error(f"Erro {nome}: {e}")
+# .Espião
+st.markdown("---")
+with st.expander("🔍 Modo Espião (Veja como o robô lê o PDF)"):
+    if arquivo_pdf:
+        leitor_debug = PdfReader(arquivo_pdf)
+        for i, pagina in enumerate(leitor_debug.pages):
+            st.write(f"--- Página {i+1} ---")
+            st.text(pagina.extract_text()) # Mostra o texto cru
+    else:
+        st.warning("Faça o upload do PDF primeiro.")
+
                 
                 barra.progress((i + 1) / total)
             
@@ -146,3 +157,4 @@ if st.button("🚀 Disparar Holerites", type="primary"):
             
         except Exception as e:
             st.error(f"Erro crítico: {e}")
+
