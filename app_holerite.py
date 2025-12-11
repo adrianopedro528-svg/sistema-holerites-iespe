@@ -100,7 +100,7 @@ nomes_selecionados = st.multiselect("Destinatários", options=list(lista_atual.k
 st.write(f"Selecionados: **{len(nomes_selecionados)}**")
 
 # --- LÓGICA DE DISPARO ---
-if st.button("🚀 Disparar Holerites", type="primary"):
+if st.button("🚀 Enviar", type="primary"):
     if not arquivo_pdf:
         st.error("Falta o arquivo PDF!")
     elif not nomes_selecionados:
