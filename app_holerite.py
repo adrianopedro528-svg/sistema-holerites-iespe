@@ -5,7 +5,6 @@ from pypdf import PdfReader, PdfWriter
 import io
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-# Se tiver a imagem 'logo.png' no GitHub, ele usa. Se não, usa emoji.
 try:
     st.set_page_config(page_title="Envio de Holerites", page_icon="ensine icone 2025.png")
 except:
@@ -19,7 +18,6 @@ try:
     EMAIL_BCC = st.secrets["config_email"]["email_copia"]
 except Exception as e:
     st.error(f"Erro ao carregar Secrets. Verifique a configuração no Streamlit Cloud.")
-    # Valores dummy para não quebrar a interface local
     DB_FUNCIONARIOS = {} 
     EMAIL_REMETENTE = ""
     SENHA_REMETENTE = ""
@@ -29,11 +27,9 @@ except Exception as e:
 if 'banco_dados' not in st.session_state:
     st.session_state['banco_dados'] = DB_FUNCIONARIOS.copy()
 
-# --- FUNÇÃO DE LIMPEZA DE TEXTO (NOVO!) ---
+# --- FUNÇÃO DE LIMPEZA DE TEXTO ---
 def limpar_texto(texto):
-    """Remove quebras de linha e espaços extras para facilitar a busca"""
     if not texto: return ""
-    # Transforma 'Pedro   Adriano\nOliveira' em 'PEDRO ADRIANO OLIVEIRA'
     return " ".join(texto.split()).upper()
 
 # --- FUNÇÃO DE ENVIO DE EMAIL ---
@@ -46,7 +42,6 @@ def enviar_email_fixo(destinatario, assunto, corpo, anexo_bytes, nome_arquivo):
     msg.set_content(corpo)
     msg.add_attachment(anexo_bytes, maintype='application', subtype='pdf', filename=nome_arquivo)
 
-    # Lógica Híbrida (Gmail ou Outlook)
     if "gmail.com" in EMAIL_REMETENTE.lower():
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
             smtp.login(EMAIL_REMETENTE, SENHA_REMETENTE)
@@ -60,7 +55,7 @@ def enviar_email_fixo(destinatario, assunto, corpo, anexo_bytes, nome_arquivo):
             smtp.send_message(msg)
 
 # --- INTERFACE VISUAL ---
-st.title("📧 Sistema de Envio de Holerites")
+st.title("📧 Envio Fácil")
 if EMAIL_REMETENTE:
     st.caption(f"Enviando através de: {EMAIL_REMETENTE}")
 else:
@@ -111,7 +106,6 @@ if st.button("🚀 Disparar Holerites", type="primary"):
     elif not EMAIL_REMETENTE:
         st.error("Erro de configuração de e-mail.")
     else:
-        # Variáveis de Relatório
         paginas_nao_identificadas = []
         funcionarios_encontrados = set()
         erros_envio = []
@@ -125,23 +119,18 @@ if st.button("🚀 Disparar Holerites", type="primary"):
             total_paginas = len(leitor.pages)
             
             for i, pagina in enumerate(leitor.pages):
-                # Extrai e LIMPA o texto antes de buscar
                 texto_original = pagina.extract_text()
                 texto_limpo = limpar_texto(texto_original)
-                
                 encontrou_dono = False
                 
                 for nome in nomes_selecionados:
-                    # Limpa o nome cadastrado também para garantir match
                     nome_limpo = limpar_texto(nome)
                     
                     if nome_limpo in texto_limpo:
                         encontrou_dono = True
                         funcionarios_encontrados.add(nome)
-                        
                         status.text(f"Pág {i+1}: Encontrado {nome}...")
                         
-                        # Prepara o PDF individual
                         escritor = PdfWriter()
                         escritor.add_page(pagina)
                         pdf_bytes = io.BytesIO()
@@ -158,42 +147,35 @@ if st.button("🚀 Disparar Holerites", type="primary"):
                             st.toast(f"✅ Enviado: {nome}")
                         except Exception as e:
                             erros_envio.append(f"{nome}: {e}")
-                        
-                        # Para de procurar outros nomes nesta mesma página (assume 1 por página)
                         break 
                 
                 if not encontrou_dono:
-                    # Salva o número da página e um pedacinho do texto para diagnóstico
                     preview = texto_limpo[:100] + "..." if texto_limpo else "Página vazia/Imagem"
                     paginas_nao_identificadas.append((i+1, preview))
 
                 barra.progress((i + 1) / total_paginas)
             
             status.empty()
-            st.balloons()
+            # st.balloons() REMOVIDO AQUI
             
             # --- RELATÓRIO FINAL ---
             st.divider()
             st.subheader("📊 Relatório do Disparo")
             
-            # 1. Sucesso
             total_enviados = len(funcionarios_encontrados)
             st.success(f"**{total_enviados}** holerites identificados e processados.")
 
-            # 2. Quem faltou (Estava na lista de seleção mas não achou no PDF)
             nao_encontrados = set(nomes_selecionados) - funcionarios_encontrados
             if nao_encontrados:
                 st.error(f"❌ **Funcionários não encontrados no arquivo ({len(nao_encontrados)}):**")
                 st.write(", ".join(nao_encontrados))
                 st.info("Dica: Verifique se o nome no cadastro está idêntico ao PDF (use o Espião abaixo).")
             
-            # 3. Páginas Órfãs (Tinha página no PDF mas o robô não achou nome)
             if paginas_nao_identificadas:
                 st.warning(f"⚠️ **{len(paginas_nao_identificadas)} Páginas não foram enviadas (sem dono identificado):**")
                 for pag, texto in paginas_nao_identificadas:
                     st.text(f"Página {pag}: O robô leu -> {texto}")
             
-            # 4. Erros técnicos de envio (Senha errada, email invalido, etc)
             if erros_envio:
                 with st.expander("Erros de Conexão/Envio"):
                     for erro in erros_envio:
