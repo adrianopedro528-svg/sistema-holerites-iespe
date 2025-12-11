@@ -2,26 +2,25 @@ import streamlit as st
 import smtplib
 from email.message import EmailMessage
 from pypdf import PdfReader, PdfWriter
-import os
+import io
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Envio de Holerites", page_icon="ensine icone 2025.png")
+# Se tiver a imagem 'logo.png' no GitHub, ele usa. Se não, usa emoji.
+try:
+    st.set_page_config(page_title="Envio de Holerites", page_icon="ensine icone 2025.png")
+except:
+    st.set_page_config(page_title="Envio de Holerites", page_icon="📧")
 
 # --- CARREGAR CONFIGURAÇÕES DO COFRE (SECRETS) ---
 try:
-    # Tenta converter os segredos em dicionário para evitar erro de .copy()
     DB_FUNCIONARIOS = dict(st.secrets["funcionarios"])
-    
-    # Carrega dados do email fixo
     EMAIL_REMETENTE = st.secrets["config_email"]["email_fixo"]
     SENHA_REMETENTE = st.secrets["config_email"]["senha_fixa"]
     EMAIL_BCC = st.secrets["config_email"]["email_copia"]
-    
 except Exception as e:
-    # Se der erro nos segredos, mostra aviso mas não trava totalmente (carrega dummy)
-    st.error(f"Erro ao carregar segredos (Secrets): {e}")
+    st.error(f"Erro ao carregar Secrets. Verifique a configuração no Streamlit Cloud.")
+    # Valores dummy para não quebrar a interface local
     DB_FUNCIONARIOS = {} 
-    # Define valores vazios para não quebrar o resto do código
     EMAIL_REMETENTE = ""
     SENHA_REMETENTE = ""
     EMAIL_BCC = ""
@@ -30,166 +29,187 @@ except Exception as e:
 if 'banco_dados' not in st.session_state:
     st.session_state['banco_dados'] = DB_FUNCIONARIOS.copy()
 
-# --- FUNÇÃO DE ENVIO DE EMAIL (COM CÓPIA OCULTA) ---
+# --- FUNÇÃO DE LIMPEZA DE TEXTO (NOVO!) ---
+def limpar_texto(texto):
+    """Remove quebras de linha e espaços extras para facilitar a busca"""
+    if not texto: return ""
+    # Transforma 'Pedro   Adriano\nOliveira' em 'PEDRO ADRIANO OLIVEIRA'
+    return " ".join(texto.split()).upper()
+
+# --- FUNÇÃO DE ENVIO DE EMAIL ---
 def enviar_email_fixo(destinatario, assunto, corpo, anexo_bytes, nome_arquivo):
     msg = EmailMessage()
     msg['Subject'] = assunto
     msg['From'] = EMAIL_REMETENTE
     msg['To'] = destinatario
-    msg['Bcc'] = EMAIL_BCC # Cópia oculta para o Financeiro
+    msg['Bcc'] = EMAIL_BCC 
     msg.set_content(corpo)
-
     msg.add_attachment(anexo_bytes, maintype='application', subtype='pdf', filename=nome_arquivo)
 
-    # Configuração GMAIL (Para o e-mail remetente fixo)
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-        smtp.login(EMAIL_REMETENTE, SENHA_REMETENTE)
-        smtp.send_message(msg)
+    # Lógica Híbrida (Gmail ou Outlook)
+    if "gmail.com" in EMAIL_REMETENTE.lower():
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(EMAIL_REMETENTE, SENHA_REMETENTE)
+            smtp.send_message(msg)
+    else:
+        with smtplib.SMTP('smtp.office365.com', 587) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.ehlo()
+            smtp.login(EMAIL_REMETENTE, SENHA_REMETENTE)
+            smtp.send_message(msg)
 
 # --- INTERFACE VISUAL ---
 st.title("📧 Sistema de Envio de Holerites")
 if EMAIL_REMETENTE:
     st.caption(f"Enviando através de: {EMAIL_REMETENTE}")
 else:
-    st.error("⚠️ Email remetente não configurado nos Secrets!")
+    st.error("⚠️ Configure os Secrets no Streamlit Cloud!")
 
 st.markdown("---")
 
-# Barra Lateral
 with st.sidebar:
-    st.header("ℹ️ Status do Sistema")
+    st.header("ℹ️ Status")
     if EMAIL_REMETENTE:
-        st.success("✅ Login Automático Ativo")
-        st.info(f"Cópia oculta configurada para:\n{EMAIL_BCC}")
+        st.success("✅ Sistema Ativo")
     else:
-        st.error("❌ Falta configurar Secrets")
+        st.error("❌ Falta Configuração")
 
 col1, col2 = st.columns(2)
-
 with col1:
-    st.subheader("1. Upload do Arquivo")
+    st.subheader("1. Upload")
     arquivo_pdf = st.file_uploader("Solte o PDF aqui", type="pdf")
-
 with col2:
     st.subheader("2. Mensagem")
     assunto_email = st.text_input("Assunto", value="Holerite - Pagamento")
-    corpo_email = st.text_area("Texto", value="Segue em anexo seu holerite.\n\nAtenciosamente,\nFinanceiro - ENSINE", height=100)
+    corpo_email = st.text_area("Texto", value="Segue em anexo seu holerite.\n\nAtt,\nFinanceiro - IESPE", height=100)
 
 st.markdown("---")
 
-# --- ÁREA DE ADICIONAR NOVO FUNCIONÁRIO ---
-with st.expander("➕ Adicionar alguém fora da lista"):
+# --- ADICIONAR FUNCIONÁRIO ---
+with st.expander("➕ Adicionar Novo Funcionário"):
     c1, c2, c3 = st.columns([2, 2, 1])
-    with c1:
-        novo_nome = st.text_input("Nome (Como está no PDF)")
-    with c2:
-        novo_email = st.text_input("E-mail do Funcionário")
-    with c3:
-        st.write("") 
-        st.write("") 
-        if st.button("Adicionar"):
-            if novo_nome and novo_email:
-                st.session_state['banco_dados'][novo_nome] = novo_email
-                st.success(f"{novo_nome} adicionado!")
-                st.rerun()
+    novo_nome = c1.text_input("Nome (Trecho único)")
+    novo_email = c2.text_input("E-mail")
+    if c3.button("Salvar") and novo_nome and novo_email:
+        st.session_state['banco_dados'][novo_nome] = novo_email
+        st.success("Adicionado!")
+        st.rerun()
 
-st.subheader("3. Seleção de Destinatários")
+st.subheader("3. Seleção")
+lista_atual = st.session_state['banco_dados']
+nomes_selecionados = st.multiselect("Destinatários", options=list(lista_atual.keys()), default=list(lista_atual.keys()))
 
-lista_atualizada = st.session_state['banco_dados']
-nomes_selecionados = st.multiselect(
-    "Quem vai receber?",
-    options=list(lista_atualizada.keys()), 
-    default=list(lista_atualizada.keys())
-)
+st.write(f"Selecionados: **{len(nomes_selecionados)}**")
 
-st.write(f"Emails serão enviados para **{len(nomes_selecionados)}** pessoas.")
-
-# --- LÓGICA DO BOTÃO DE DISPARO ---
+# --- LÓGICA DE DISPARO ---
 if st.button("🚀 Disparar Holerites", type="primary"):
     if not arquivo_pdf:
         st.error("Falta o arquivo PDF!")
-    elif len(nomes_selecionados) == 0:
-        st.warning("Selecione alguém.")
+    elif not nomes_selecionados:
+        st.warning("Selecione alguém na lista.")
     elif not EMAIL_REMETENTE:
-        st.error("Configuração de email inválida. Verifique os Secrets.")
+        st.error("Erro de configuração de e-mail.")
     else:
+        # Variáveis de Relatório
+        paginas_nao_identificadas = []
+        funcionarios_encontrados = set()
+        erros_envio = []
+        
         barra = st.progress(0)
         status = st.empty()
-        cont = 0
         
         try:
-            # Reseta o ponteiro do arquivo para garantir leitura do início
             arquivo_pdf.seek(0)
             leitor = PdfReader(arquivo_pdf)
-            total = len(leitor.pages)
+            total_paginas = len(leitor.pages)
             
             for i, pagina in enumerate(leitor.pages):
-                texto = pagina.extract_text()
+                # Extrai e LIMPA o texto antes de buscar
+                texto_original = pagina.extract_text()
+                texto_limpo = limpar_texto(texto_original)
+                
+                encontrou_dono = False
                 
                 for nome in nomes_selecionados:
-                    # Verifica se o nome está no texto (caixa alta para garantir)
-                    if nome.upper() in texto.upper():
-                        email_dest = st.session_state['banco_dados'][nome]
-                        status.text(f"Enviando para: {nome}...")
+                    # Limpa o nome cadastrado também para garantir match
+                    nome_limpo = limpar_texto(nome)
+                    
+                    if nome_limpo in texto_limpo:
+                        encontrou_dono = True
+                        funcionarios_encontrados.add(nome)
                         
+                        status.text(f"Pág {i+1}: Encontrado {nome}...")
+                        
+                        # Prepara o PDF individual
                         escritor = PdfWriter()
                         escritor.add_page(pagina)
-                        
-                        from io import BytesIO
-                        pdf_bytes = BytesIO()
+                        pdf_bytes = io.BytesIO()
                         escritor.write(pdf_bytes)
                         
                         try:
                             enviar_email_fixo(
-                                email_dest, 
+                                lista_atual[nome], 
                                 assunto_email, 
                                 corpo_email, 
                                 pdf_bytes.getvalue(), 
                                 f"Holerite_{nome}.pdf"
                             )
                             st.toast(f"✅ Enviado: {nome}")
-                            cont += 1
                         except Exception as e:
-                            st.error(f"Erro ao enviar para {nome}: {e}")
+                            erros_envio.append(f"{nome}: {e}")
+                        
+                        # Para de procurar outros nomes nesta mesma página (assume 1 por página)
+                        break 
                 
-                barra.progress((i + 1) / total)
+                if not encontrou_dono:
+                    # Salva o número da página e um pedacinho do texto para diagnóstico
+                    preview = texto_limpo[:100] + "..." if texto_limpo else "Página vazia/Imagem"
+                    paginas_nao_identificadas.append((i+1, preview))
+
+                barra.progress((i + 1) / total_paginas)
             
-            st.success(f"Finalizado! {cont} holerites enviados.")
             status.empty()
+            st.balloons()
             
-        except Exception as e:
-            st.error(f"Erro crítico no processamento: {e}")
+            # --- RELATÓRIO FINAL ---
+            st.divider()
+            st.subheader("📊 Relatório do Disparo")
+            
+            # 1. Sucesso
+            total_enviados = len(funcionarios_encontrados)
+            st.success(f"**{total_enviados}** holerites identificados e processados.")
 
-# --- MODO ESPIÃO (FORA DO BOTÃO DE ENVIO) ---
+            # 2. Quem faltou (Estava na lista de seleção mas não achou no PDF)
+            nao_encontrados = set(nomes_selecionados) - funcionarios_encontrados
+            if nao_encontrados:
+                st.error(f"❌ **Funcionários não encontrados no arquivo ({len(nao_encontrados)}):**")
+                st.write(", ".join(nao_encontrados))
+                st.info("Dica: Verifique se o nome no cadastro está idêntico ao PDF (use o Espião abaixo).")
+            
+            # 3. Páginas Órfãs (Tinha página no PDF mas o robô não achou nome)
+            if paginas_nao_identificadas:
+                st.warning(f"⚠️ **{len(paginas_nao_identificadas)} Páginas não foram enviadas (sem dono identificado):**")
+                for pag, texto in paginas_nao_identificadas:
+                    st.text(f"Página {pag}: O robô leu -> {texto}")
+            
+            # 4. Erros técnicos de envio (Senha errada, email invalido, etc)
+            if erros_envio:
+                with st.expander("Erros de Conexão/Envio"):
+                    for erro in erros_envio:
+                        st.write(erro)
+
+        except Exception as e:
+            st.error(f"Erro crítico: {e}")
+
+# --- MODO ESPIÃO ---
 st.markdown("---")
-with st.expander("🔍 Modo Espião (Diagnóstico Completo)"):
+with st.expander("🔍 Modo Espião (Verifique como cadastrar os nomes)"):
     if arquivo_pdf:
-        try:
-            # 1. Reseta o arquivo para o inicio
-            arquivo_pdf.seek(0)
-            leitor_debug = PdfReader(arquivo_pdf)
-            num_paginas = len(leitor_debug.pages)
-            
-            st.info(f"📊 O robô detectou **{num_paginas} páginas** neste arquivo.")
-            st.info("Abaixo mostro o que consigo ler. Se estiver vazio, o PDF pode ser uma imagem.")
-
-            for i, pagina in enumerate(leitor_debug.pages):
-                texto_cru = pagina.extract_text()
-                
-                st.markdown(f"### 📄 Página {i+1}")
-                
-                if texto_cru and len(texto_cru.strip()) > 0:
-                    # Mostra o texto dentro de uma caixa de texto para facilitar a leitura
-                    st.text_area(f"Texto encontrado na Pág {i+1}", value=texto_cru, height=200)
-                else:
-                    st.warning(f"⚠️ A página {i+1} parece vazia ou é uma imagem escaneada (sem texto selecionável).")
-                
-                st.divider()
-
-        except Exception as e:
-            st.error(f"❌ Erro ao tentar ler o PDF: {e}")
-    else:
-        st.warning("Faça o upload do PDF lá em cima primeiro.")
-
-
-
+        arquivo_pdf.seek(0)
+        leitor_debug = PdfReader(arquivo_pdf)
+        st.info("Copie o nome EXATAMENTE como aparece abaixo (em maiúsculo e sem acentos se estiver assim).")
+        for i, pagina in enumerate(leitor_debug.pages):
+            texto = limpar_texto(pagina.extract_text())
+            st.text(f"Pág {i+1}: {texto}")
+            st.divider()
