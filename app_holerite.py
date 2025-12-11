@@ -55,7 +55,7 @@ def enviar_email_fixo(destinatario, assunto, corpo, anexo_bytes, nome_arquivo):
             smtp.send_message(msg)
 
 # --- INTERFACE VISUAL ---
-ol_logo, col_texto = st.columns([1, 6]) # Ajuste o 1 e 6 para mudar a proporção
+col_logo, col_texto = st.columns([1, 6]) # Ajuste o 1 e 6 para mudar a proporção
 col_logo.image("ensine icone 2025.png", width=80)     # Ajuste o width para o tamanho da sua logo
 col_texto.title("Envio Fácil")
 if EMAIL_REMETENTE:
@@ -197,4 +197,5 @@ with st.expander("🔍 Modo Espião (Verifique como cadastrar os nomes)"):
             texto = limpar_texto(pagina.extract_text())
             st.text(f"Pág {i+1}: {texto}")
             st.divider()
+
 
