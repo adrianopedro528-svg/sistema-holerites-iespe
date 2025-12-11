@@ -73,7 +73,7 @@ with col1:
 with col2:
     st.subheader("2. Mensagem")
     assunto_email = st.text_input("Assunto", value="Holerite - Pagamento")
-    corpo_email = st.text_area("Texto", value="Segue em anexo seu holerite.\n\nAtenciosamente,\nFinanceiro - IESPE", height=100)
+    corpo_email = st.text_area("Texto", value="Segue em anexo seu holerite.\n\nAtenciosamente,\nFinanceiro - ENSINE", height=100)
 
 st.markdown("---")
 
@@ -190,5 +190,6 @@ with st.expander("🔍 Modo Espião (Diagnóstico Completo)"):
             st.error(f"❌ Erro ao tentar ler o PDF: {e}")
     else:
         st.warning("Faça o upload do PDF lá em cima primeiro.")
+
 
 
